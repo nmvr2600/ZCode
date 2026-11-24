@@ -20,7 +20,7 @@ UI 只读既有事实，不新增状态、不新增 RPC、不改协议：
 ## 展示时机
 
 - 行本身：拿到 `snapshot` 且任一指标可用时出现；新任务草稿态（`snapshot === null`）与三段全空时不渲染。
-- 轮次与 tok/s：挂载会话与每轮进入终态（`completedSuccess` / `completedInterrupted` / `error`）时读一次 `session-debug`，**不按 1s 轮询**；`running` / `prewarming` 期间沿用上一次结果。
+- 轮次与 tok/s：复用 `useSessionDebug`，会话打开期间按 1s 读取 `session-debug`（与开发者工具同频），每次主链路请求完成即可刷新。只在整轮终态读一次会落后整轮内后续所有请求（2026-11-24 反馈）。
 - token 与缓存命中：随 snapshot 实时更新。
 
 ## 展示契约
