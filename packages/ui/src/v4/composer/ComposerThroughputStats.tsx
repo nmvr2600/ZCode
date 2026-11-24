@@ -10,7 +10,12 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
  * 因此紧跟着再做一次确认读，避免漏掉刚完成的那一轮。
  */
 const CONFIRM_READ_DELAY_MS = 400;
-const EMPTY_FACTS: DebugFacts = { tps: null, roundIndex: null, outputTokens: null };
+const EMPTY_FACTS: DebugFacts = {
+  tps: null,
+  roundIndex: null,
+  outputTokens: null,
+  cacheHitRate: null,
+};
 
 interface ComposerThroughputStatsProps {
   snapshot: ConversationSnapshot | null;
@@ -26,6 +31,13 @@ interface DebugFacts {
   roundIndex: number | null;
   /** 最近一次主链路请求的输出 token（开发者工具 Output 列）。 */
   outputTokens: number | null;
+  /**
+   * 缓存命中率，与开发者工具“平均命中”同源（同一个 session-debug 观察窗口）。
+   * 不能用 snapshot.usage.contextWindow.cache.hitRate：那是 runtime 的会话级聚合，
+   * resume 时按全部持久化消息回填（mainTurnCacheHitAggregateFromMessages），
+   * 两处在同一界面会出现两个不同的“缓存命中”。
+   */
+  cacheHitRate: number | null;
 }
 
 function latestOutputTps(rounds: readonly SessionDebugSnapshot["rounds"][number][]): number | null {
@@ -36,9 +48,11 @@ function latestOutputTps(rounds: readonly SessionDebugSnapshot["rounds"][number]
   return null;
 }
 
-function readDebugFacts(rounds: readonly SessionDebugSnapshot["rounds"][number][]): DebugFacts {
+function readDebugFacts(debug: SessionDebugSnapshot): DebugFacts {
+  const rounds = debug.rounds;
   const latest = rounds.at(-1);
   const outputTokens = latest?.usage.outputTokens;
+  const cacheHitRate = debug.cache?.hitRate;
   return {
     tps: latestOutputTps(rounds),
     roundIndex:
@@ -48,6 +62,10 @@ function readDebugFacts(rounds: readonly SessionDebugSnapshot["rounds"][number][
     outputTokens:
       typeof outputTokens === "number" && Number.isFinite(outputTokens) && outputTokens >= 0
         ? outputTokens
+        : null,
+    cacheHitRate:
+      typeof cacheHitRate === "number" && Number.isFinite(cacheHitRate) && cacheHitRate >= 0
+        ? cacheHitRate
         : null,
   };
 }
@@ -85,7 +103,7 @@ function useSessionDebugFacts({
           workspaceIdentity,
           sessionId,
         });
-        facts = readDebugFacts(debug.rounds);
+        facts = readDebugFacts(debug);
       } catch {
         // 调试事实读取失败不影响统计行其余指标。
       }
@@ -125,16 +143,12 @@ function resolveSessionTokens(usage: ConversationSnapshot["usage"] | null): numb
   return total > 0 ? total : null;
 }
 
-function resolveCacheHitRate(usage: ConversationSnapshot["usage"] | null): number | null {
-  const hitRate = usage?.contextWindow?.cache?.hitRate;
-  return typeof hitRate === "number" && Number.isFinite(hitRate) && hitRate >= 0 ? hitRate : null;
-}
-
 /**
  * 输入框下方的常驻吞吐统计（docs/composer-throughput-stats.md）。
  *
- * 轮次与 tok/s 复用开发者工具同一份 session-debug 事实；读取由 snapshot.usage 变化
- * （= 每次主链路请求完成）驱动，紧接一次确认读，空闲不读。token 与缓存命中来自 snapshot。
+ * 轮次、tok/s、输出与缓存命中都复用开发者工具同一份 session-debug 事实；读取由
+ * snapshot.usage 变化（= 每次主链路请求完成）驱动，紧接一次确认读，空闲不读。
+ * token 段来自 snapshot 的上下文水位。
  */
 export function ComposerThroughputStats({
   snapshot,
@@ -143,7 +157,7 @@ export function ComposerThroughputStats({
   sessionId,
 }: ComposerThroughputStatsProps) {
   const { intl, locale } = useZCodeIntl();
-  const { tps, roundIndex, outputTokens } = useSessionDebugFacts({
+  const { tps, roundIndex, outputTokens, cacheHitRate } = useSessionDebugFacts({
     workspacePath,
     workspaceIdentity,
     sessionId,
@@ -151,9 +165,7 @@ export function ComposerThroughputStats({
   });
   if (!snapshot) return null;
 
-  const usage = snapshot.usage;
-  const tokens = resolveSessionTokens(usage);
-  const cacheHitRate = resolveCacheHitRate(usage);
+  const tokens = resolveSessionTokens(snapshot.usage);
   if (
     roundIndex === null &&
     tps === null &&
@@ -211,9 +223,12 @@ export function ComposerThroughputStats({
       intl.formatMessage(
         { id: "chat.composer.throughput.cacheHit" },
         {
+          // 命中率保留 1 位小数：取整会把 98.6% 显示成 99%。
+          // 口径与开发者工具“平均命中”一致（同一个 session-debug 观察窗口），
+          // 不再读 snapshot 里的会话级聚合，避免同屏出现两个不同的命中率。
           value: new Intl.NumberFormat(locale, {
             style: "percent",
-            maximumFractionDigits: 0,
+            maximumFractionDigits: 1,
           }).format(cacheHitRate),
         },
       ),
