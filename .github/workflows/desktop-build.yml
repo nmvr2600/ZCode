@@ -1,0 +1,208 @@
+name: Desktop Build
+
+# 桌面安装包构建入口。分支 / PR / tag / 手动的差异全部由 scripts/ci/desktop-build-plan.mjs 判定，
+# 本文件只负责矩阵调度、平台依赖和产物上传，不复制平台或发布规则。
+on:
+  push:
+    branches:
+      - main
+      - dev
+    tags:
+      - "v*"
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "scripts/**"
+      - "config/**"
+      - "public/**"
+      - "patches/**"
+      - "third-party/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "mise.toml"
+      - ".nvmrc"
+      - ".github/workflows/desktop-build.yml"
+  pull_request:
+    types: [opened, labeled, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: "逗号分隔的平台列表（macos-arm64 / macos-x64 / windows-x64 / windows-arm64 / linux-x64 / linux-arm64）"
+        required: false
+        default: "macos-arm64,windows-x64,linux-x64"
+      profile:
+        description: "构建画像"
+        required: false
+        type: choice
+        default: production
+        options:
+          - production
+          - preview-production
+          - preview-test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_build: ${{ steps.plan.outputs.should_build }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      profile: ${{ steps.plan.outputs.profile }}
+      zcode_env: ${{ steps.plan.outputs.zcode_env }}
+      preview_identity: ${{ steps.plan.outputs.preview_identity }}
+      release_tag: ${{ steps.plan.outputs.release_tag }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve build plan
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          INPUT_PLATFORMS: ${{ github.event.inputs.platforms }}
+          INPUT_PROFILE: ${{ github.event.inputs.profile }}
+        run: node scripts/ci/desktop-build-plan.mjs
+      - name: Summarize plan
+        env:
+          SHOULD_BUILD: ${{ steps.plan.outputs.should_build }}
+          MATRIX: ${{ steps.plan.outputs.matrix }}
+          PROFILE: ${{ steps.plan.outputs.profile }}
+          RELEASE_TAG: ${{ steps.plan.outputs.release_tag }}
+        run: |
+          {
+            echo "### Desktop build plan"
+            echo ""
+            echo "- should_build: \`${SHOULD_BUILD}\`"
+            echo "- profile: \`${PROFILE}\`"
+            echo "- release_tag: \`${RELEASE_TAG:-none}\`"
+            echo "- matrix: \`${MATRIX}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Build ${{ matrix.label }}
+    needs: plan
+    if: needs.plan.outputs.should_build == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    env:
+      HUSKY: "0"
+      # GitHub 托管 runner 位于境外机房，Electron 与 electron-builder 二进制走官方 GitHub Release，
+      # 不走 mise.toml 里给本地开发准备的内网镜像。
+      ELECTRON_MIRROR: "https://github.com/electron/electron/releases/download/"
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      ZCODE_TARGET_OS: ${{ matrix.os }}
+      ZCODE_TARGET_ARCH: ${{ matrix.arch }}
+      ZCODE_ENV: ${{ needs.plan.outputs.zcode_env }}
+      ZCODE_PREVIEW_IDENTITY: ${{ needs.plan.outputs.preview_identity }}
+      NODE_OPTIONS: "--max-old-space-size=8192"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Enable git long paths
+        if: runner.os == 'Windows'
+        run: git config --system core.longpaths true
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm xz-utils libarchive-tools
+      - name: Cache Electron artifacts (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-linux-${{ hashFiles('pnpm-lock.yaml', 'packages/desktop/package.json') }}
+          restore-keys: electron-linux-
+      - name: Cache Electron artifacts (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: electron-macos-${{ hashFiles('pnpm-lock.yaml', 'packages/desktop/package.json') }}
+          restore-keys: electron-macos-
+      - name: Cache Electron artifacts (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-windows-${{ hashFiles('pnpm-lock.yaml', 'packages/desktop/package.json') }}
+          restore-keys: electron-windows-
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Assert Node version
+        run: pnpm ci:assert-node
+      - name: Build installers
+        # 直接调用打包脚本，绕开 pnpm 两层 script 透传 `--` 的参数改写。
+        run: node packages/desktop/scripts/bundle.mjs --os ${{ matrix.os }} --arch ${{ matrix.arch }}
+      - name: Collect artifacts
+        run: >-
+          node scripts/ci/collect-desktop-artifacts.mjs
+          --platform ${{ matrix.platform }}
+          --profile ${{ needs.plan.outputs.profile }}
+          --version ${{ needs.plan.outputs.version }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.platform }}
+          path: ci-artifacts
+          if-no-files-found: error
+          retention-days: ${{ github.event_name == 'pull_request' && 7 || 14 }}
+
+  release:
+    name: Publish GitHub release
+    needs: [plan, build]
+    if: needs.plan.outputs.release_tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: release
+          merge-multiple: true
+      - name: Merge checksum manifests
+        run: |
+          cd release
+          cat SHA256SUMS-* > SHA256SUMS
+          rm -f SHA256SUMS-*
+          cat SHA256SUMS
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.release_tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber
+          else
+            gh release create "$TAG" release/* --title "$TAG" --generate-notes
+          fi
