@@ -39,6 +39,20 @@ test("release tag must match the repository version", () => {
   );
 });
 
+test("tag suffix releases keep the package version unchanged", () => {
+  const plan = resolveDesktopBuildPlan({
+    eventName: "push",
+    refType: "tag",
+    refName: "v4.0.0-fork.1",
+    packageVersion,
+  });
+
+  assert.equal(plan.shouldBuild, true);
+  assert.equal(plan.releaseTag, "v4.0.0-fork.1");
+  assert.equal(plan.version, "4.0.0");
+  assert.deepEqual(plan.platforms, ["macos-arm64"]);
+});
+
 test("branch push builds the default macOS platform and never publishes", () => {
   const plan = resolveDesktopBuildPlan({
     eventName: "push",

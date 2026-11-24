@@ -116,11 +116,12 @@ export function resolveDesktopBuildPlan({
   let reason;
 
   if (refType === "tag") {
-    // 发布 tag 必须与仓库版本一致，否则安装包文件名、应用版本和 Release 标题会互相矛盾。
+    // tag 的版本前缀必须与 package.json 一致；允许 `v<version>-<后缀>`（如 v4.0.0-fork.1）
+    // 作为分支发布标记，避免为了打分支包而改写产品版本号。
     const expectedTag = `v${packageVersion}`;
-    if (refName !== expectedTag) {
+    if (refName !== expectedTag && !refName.startsWith(`${expectedTag}-`)) {
       throw new Error(
-        `tag ${refName} 与 package.json 版本 ${packageVersion} 不匹配；期望 ${expectedTag}`,
+        `tag ${refName} 与 package.json 版本 ${packageVersion} 不匹配；期望 ${expectedTag} 或 ${expectedTag}-<后缀>`,
       );
     }
     platforms = parsePlatforms("", DEFAULT_PLATFORMS);

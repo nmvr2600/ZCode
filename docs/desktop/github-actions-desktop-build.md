@@ -65,9 +65,10 @@ Linux 打包 job 需要 `rpm`、`xz-utils` 与 `libarchive-tools`（pacman 目�
 
 ## 版本与 tag
 
-- 版本号唯一来源是根目录 `package.json`。分支/PR 构建沿用当前版本，产物通过身份和后缀区分，不做版本号改写。
-- tag 必须是 `v<package.json version>`，否则 `plan` 直接失败，避免安装包文件名、应用版本与 Release 标题不一致。
-- 发版流程：PR 中提升 `package.json` 版本 → 合并到 `main` → 打 tag `v<version>` → workflow 构建 macOS arm64 并创建 GitHub Release。
+- 版本号唯一来源是根目录 `package.json`，workflow 不改写版本号。
+- tag 必须匹配 `v<package.json version>` 或 `v<package.json version>-<后缀>`（如 `v4.0.0-fork.1`），否则 `plan` 直接失败。后缀只标记这次分支发布，安装包版本仍是 `package.json` 的值。
+- 正式发版流程：PR 中提升 `package.json` 版本 → 合并到 `main` → 打 tag `v<version>` → workflow 构建 macOS arm64 并创建 GitHub Release。
+- 只想验证分支包时打 `v<version>-<后缀>` 即可，不需要修改版本号。
 
 ## 产物与校验
 
