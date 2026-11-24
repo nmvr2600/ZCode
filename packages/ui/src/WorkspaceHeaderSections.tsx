@@ -259,6 +259,9 @@ export function WorkspaceHeaderTitleSection({
   // 新任务草稿还没有稳定 task 作用域，header 再展示 workspace/分支会和空态主文案重复抢焦点。
   // 草稿态继续隐藏上下文入口；已有 task 将工作区与分支收进名称前的图标提示。
   const isDraftNewTask = variant ? variant === "draft" : activeTaskId === null;
+  // worktree 任务的 cwd 与项目主目录不同，只看任务标题无法确认改动落在哪个目录、哪个分支。
+  // 这里把项目名与分支直接内联到标题栏；手机远控窄屏仍沿用原有图标/设备名入口。
+  const showInlineWorkspaceName = !isRemoteWorkspace && !simplifyForNarrowRemote;
 
   const handleOpenTaskFeedback = async () => {
     const taskTitle =
@@ -463,9 +466,11 @@ export function WorkspaceHeaderTitleSection({
           <Button
             type="button"
             variant="ghost"
-            size={isRemoteWorkspace ? "sm" : compact ? "icon-sm" : "icon-md"}
+            size={
+              isRemoteWorkspace || showInlineWorkspaceName ? "sm" : compact ? "icon-sm" : "icon-md"
+            }
             className={
-              isRemoteWorkspace
+              isRemoteWorkspace || showInlineWorkspaceName
                 ? "min-w-0 max-w-40 gap-1.5 px-1.5 text-foreground-subtle"
                 : undefined
             }
@@ -485,13 +490,38 @@ export function WorkspaceHeaderTitleSection({
                   {remoteDeviceName}
                 </span>
               </>
-            ) : managedWorktree ? (
-              <FolderGit2 className="size-4 text-foreground-subtle" />
             ) : (
-              <Folder className="size-4 text-foreground-subtle" />
+              <>
+                {managedWorktree ? (
+                  <FolderGit2 className="size-4 shrink-0 text-foreground-subtle" />
+                ) : (
+                  <Folder className="size-4 shrink-0 text-foreground-subtle" />
+                )}
+                {/* 内联展示项目/受管 worktree 名称：此前只有图标，目录与分支必须点开上下文才可见。 */}
+                {showInlineWorkspaceName ? (
+                  <span
+                    data-workspace-header-project=""
+                    className="hidden min-w-0 truncate text-ui-sm font-normal @min-[520px]/workspace-header:block"
+                  >
+                    {workspaceContextLabel}
+                  </span>
+                ) : null}
+              </>
             )}
           </Button>
         </ControlHintTooltip>
+      ) : null}
+      {/* 分支与项目名一起内联展示：worktree 任务读到的就是 worktree 自己的 HEAD。
+         容器过窄时先隐藏分支，避免挤压任务标题与右侧操作。 */}
+      {!isDraftNewTask && workspaceBranchLabel ? (
+        <span
+          data-workspace-header-branch=""
+          title={workspaceBranchLabel}
+          className="hidden max-w-32 shrink-0 items-center gap-1 rounded-full bg-surface px-1.5 py-px text-ui-sm font-normal text-foreground-subtle @min-[720px]/workspace-header:flex"
+        >
+          <GitBranch className="size-3.5 shrink-0" />
+          <span className="min-w-0 truncate">{workspaceBranchLabel}</span>
+        </span>
       ) : null}
       {!isDraftNewTask ? (
         <h1

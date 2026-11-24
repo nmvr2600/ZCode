@@ -154,7 +154,10 @@ describe("TTL：Task 名称溢出走马灯", () => {
         TID_WORKSPACE_TITLE,
       ),
     ).toBe(true);
-    expect(await $("[data-workspace-header-branch]").isExisting()).toBe(false);
+    // 项目名直接内联在标题栏，不需要点开上下文查看；分支标签由 TSL43（会初始化 Git 仓库）覆盖。
+    const inlineProject = await $("[data-workspace-header-project]");
+    await inlineProject.waitForDisplayed({ timeout: 5000 });
+    expect(await inlineProject.getText()).toContain("ZCodeProject");
     await icon.moveTo();
     const info = await $("[data-workspace-header-context-info]");
     await info.waitForDisplayed({ timeout: 5000 });

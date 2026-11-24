@@ -1,6 +1,6 @@
 // TSL43：会话行悬停卡片显示工作区、路径、最近活动与分支；覆盖按项目行与按分组行。
 import { execFileSync } from "node:child_process";
-import { TID_TASK_ITEM, TID_WORKSPACE_TITLE } from "@zcode/shared/test-ids";
+import { TID_TASK_ITEM, TID_WORKSPACE_HEADER, TID_WORKSPACE_TITLE } from "@zcode/shared/test-ids";
 import { clearAppData, DEFAULT_WORKSPACE } from "#e2e/helpers/desktop-app";
 import {
   getV4PaneSnapshot,
@@ -100,6 +100,17 @@ describe("TSL43：会话行悬停工作区卡片", () => {
       45_000,
     );
     const sessionId = (await getV4PaneSnapshot()).sessionId as string;
+
+    // 标题栏内联展示当前分支；worktree 任务读到的是 worktree 自己的 HEAD。
+    const headerBranch = await $(
+      `[data-testid="${TID_WORKSPACE_HEADER}"] [data-workspace-header-branch]`,
+    );
+    await headerBranch.waitForDisplayed({ timeout: 15_000 });
+    await browser.waitUntil(async () => (await headerBranch.getText()).includes(branch), {
+      timeout: 30_000,
+      interval: 500,
+      timeoutMsg: "标题栏没有内联显示当前分支",
+    });
 
     // 按项目视图：悬停任务行出现完整卡片，移出后关闭。
     const projectCard = await hoverTaskRow(sessionId, "projects");

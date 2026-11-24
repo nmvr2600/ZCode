@@ -20,6 +20,14 @@ WorkspaceHeader variant="draft"  ─────▶  WorkspaceHeader variant="ta
 - Draft 顶部文件拖拽复用主 Composer 暴露的 drop target controller，只在 Header 内显示遮罩，不注册第二套附件入口。
 - Header 的错误边界只按 workspace 重置，Draft 首次提交得到 `activeTaskId` 时不能因为 reset key 改变而重建 Header。
 
+## 标题栏上下文
+
+- `variant="task"` 在任务标题左侧内联展示当前目录与分支：项目名（受管 worktree 任务为 `<仓库名> · <bucket>`）与 HEAD 分支各占一个静态标签，不需要点开上下文即可确认任务实际落在哪个目录、哪个分支。
+- 内联标签只做展示，不新增交互；点击原有上下文入口仍打开 tooltip，查看任务 cwd 绝对路径、最近活动与分支详情。
+- 分支取自当前任务 cwd 的 Git 状态，worktree 任务读 worktree 目录，不是项目主目录。
+- 空间不足时按 header 容器宽度逐级降级：先隐藏分支标签，再隐藏项目名、只保留目录图标，任务标题与右侧操作始终优先。
+- 手机远控窄屏（`simplifyForNarrowRemote`）不展示内联标签，沿用原有设备名/图标入口。
+
 ## 多端边界
 
 - 桌面端本地与远程 workspace 都使用上述 variant 模型，并继续适配 macOS、Windows、Linux 和两种主题。
@@ -29,5 +37,6 @@ WorkspaceHeader variant="draft"  ─────▶  WorkspaceHeader variant="ta
 
 - New Task 页面存在 `WorkspaceHeader[data-workspace-header-variant="draft"]`，Side Pane 按钮可展开/收起已有 tabs。
 - Draft Header 不显示任务标题、编辑器选择器、Task 更多菜单和 workspace/branch 上下文；Side Pane 收起时底部分割线透明，展开时显示默认分割线。
+- Task Header 在任务标题左侧内联显示项目名（worktree 任务为 `<仓库名> · <bucket>`）与当前分支；窄宽度下先隐藏分支、再隐藏项目名，只保留图标。
 - 首次提交进入 Task 后，同一 Header 切换为 `variant="task"`，标题栏高度和右侧共享操作位置不跳变。
 - 单测覆盖 variant 透传与 Draft 内容裁剪；桌面 E2E 覆盖 Draft Header 和 Side Pane 交互。
