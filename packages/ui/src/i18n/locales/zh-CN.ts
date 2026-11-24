@@ -7376,6 +7376,7 @@ const zhCN: Record<string, string> = {
   "chat.composer.throughput.cacheHit": "缓存命中 {value}",
   "chat.composer.throughput.description": "最近一轮模型输出速率与会话 token 用量",
   "chat.composer.throughput.round": "第 {value} 次请求",
+  "chat.composer.throughput.output": "输出 {value}",
   "chat.composer.throughput.tokens": "{value} tok",
   "chat.composer.throughput.tps": "{value} tok/s",
   "chat.send.description": "发送当前输入内容和附件。",

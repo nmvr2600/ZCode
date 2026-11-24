@@ -7274,6 +7274,7 @@ const koKR: Record<string, string> = {
   "chat.composer.throughput.cacheHit": "캐시 적중 {value}",
   "chat.composer.throughput.description": "최근 턴 출력 속도와 세션 토큰 사용량",
   "chat.composer.throughput.round": "{value}번째 요청",
+  "chat.composer.throughput.output": "출력 {value}",
   "chat.composer.throughput.tokens": "{value} tok",
   "chat.composer.throughput.tps": "{value} tok/s",
   "chat.send.description": "현재 텍스트와 첨부 파일을 보냅니다.",

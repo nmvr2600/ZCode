@@ -4,9 +4,13 @@ import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
 import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
-/** 运行中按 1s 拉一次；空闲不轮询（CLI 没有推送每请求 token/耗时的通道）。 */
-const RUNNING_REFRESH_MS = 1000;
-const EMPTY_FACTS: DebugFacts = { tps: null, roundIndex: null };
+/**
+ * 每次主链路请求完成都会推一次 usage 快照；随后补读一次的间隔。
+ * CLI 的 debug 旁路记录与 usage 投影在同一个事件里写入，但快照帧可能先到，
+ * 因此紧跟着再做一次确认读，避免漏掉刚完成的那一轮。
+ */
+const CONFIRM_READ_DELAY_MS = 400;
+const EMPTY_FACTS: DebugFacts = { tps: null, roundIndex: null, outputTokens: null };
 
 interface ComposerThroughputStatsProps {
   snapshot: ConversationSnapshot | null;
@@ -20,6 +24,8 @@ interface DebugFacts {
   tps: number | null;
   /** 会话累计主链路请求序号，与开发者工具“轮次”列同源。 */
   roundIndex: number | null;
+  /** 最近一次主链路请求的输出 token（开发者工具 Output 列）。 */
+  outputTokens: number | null;
 }
 
 function latestOutputTps(rounds: readonly SessionDebugSnapshot["rounds"][number][]): number | null {
@@ -32,31 +38,35 @@ function latestOutputTps(rounds: readonly SessionDebugSnapshot["rounds"][number]
 
 function readDebugFacts(rounds: readonly SessionDebugSnapshot["rounds"][number][]): DebugFacts {
   const latest = rounds.at(-1);
+  const outputTokens = latest?.usage.outputTokens;
   return {
     tps: latestOutputTps(rounds),
     roundIndex:
       typeof latest?.requestIndex === "number" && latest.requestIndex > 0
         ? latest.requestIndex
         : null,
+    outputTokens:
+      typeof outputTokens === "number" && Number.isFinite(outputTokens) && outputTokens >= 0
+        ? outputTokens
+        : null,
   };
 }
 
 /**
- * 读取吞吐事实的时机：挂载 / 切会话 / 每轮开始与结束各读一次；只有会话运行中才按 1s 续读。
- *
- * CLI 目前没有推送 per-request token 与耗时的通知（localTtftFacts 只带 TTFT 时间点），
- * `session-debug` 只能拉取，所以运行中必须轮询才能跟上轮内连续多次模型请求；空闲时不读。
+ * 读取吞吐事实的时机：由 `usageKey` 驱动——每当主链路请求完成（snapshot.usage 变化）
+ * 读一次 debug 事实，并在 400ms 后补读一次确认。不设定时轮询：usage 投影本身就是
+ * 每请求一次的推送事实，空闲会话不会触发任何读取。
  */
 function useSessionDebugFacts({
   workspacePath,
   workspaceIdentity,
   sessionId,
-  active,
+  usageKey,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
   sessionId: string | null;
-  active: boolean;
+  usageKey: string;
 }): DebugFacts {
   const { zcodeAgentService } = useServices();
   const scopeKey = JSON.stringify([workspaceIdentity?.trim() || workspacePath, sessionId]);
@@ -80,28 +90,30 @@ function useSessionDebugFacts({
         // 调试事实读取失败不影响统计行其余指标。
       }
       if (!disposed) setResult({ key: scopeKey, facts });
-      return !disposed;
     };
 
-    const scheduleNext = () => {
-      timer = setTimeout(() => {
-        void read().then((alive) => {
-          if (alive) scheduleNext();
-        });
-      }, RUNNING_REFRESH_MS);
-    };
-
-    // 进终态或切会话时 active 变化会重建本 effect：先读一次拿到最终一轮的数据。
     void read();
-    if (active) scheduleNext();
+    timer = setTimeout(() => void read(), CONFIRM_READ_DELAY_MS);
 
     return () => {
       disposed = true;
       if (timer !== undefined) clearTimeout(timer);
     };
-  }, [active, scopeKey, sessionId, workspaceIdentity, workspacePath, zcodeAgentService]);
+  }, [usageKey, scopeKey, sessionId, workspaceIdentity, workspacePath, zcodeAgentService]);
 
   return result?.key === scopeKey ? result.facts : EMPTY_FACTS;
+}
+
+/** 每完成一次主链路请求，这些值都会变；用它作为“该读 debug 事实了”的信号。 */
+function resolveUsageKey(snapshot: ConversationSnapshot | null): string {
+  if (!snapshot) return "";
+  const { contextWindow, cumulative } = snapshot.usage;
+  return JSON.stringify([
+    contextWindow?.usedTokens ?? null,
+    cumulative.inputTokens,
+    cumulative.outputTokens,
+    cumulative.cacheReadTokens,
+  ]);
 }
 
 function resolveSessionTokens(usage: ConversationSnapshot["usage"] | null): number | null {
@@ -121,8 +133,8 @@ function resolveCacheHitRate(usage: ConversationSnapshot["usage"] | null): numbe
 /**
  * 输入框下方的常驻吞吐统计（docs/composer-throughput-stats.md）。
  *
- * 轮次与 tok/s 复用开发者工具同一份 session-debug 事实，按 1s 节拍读取：一轮里可能连续
- * 发生多次模型请求，只在整轮终态读一次会落后很多轮。token 与缓存命中来自 v4 snapshot。
+ * 轮次与 tok/s 复用开发者工具同一份 session-debug 事实；读取由 snapshot.usage 变化
+ * （= 每次主链路请求完成）驱动，紧接一次确认读，空闲不读。token 与缓存命中来自 snapshot。
  */
 export function ComposerThroughputStats({
   snapshot,
@@ -131,19 +143,25 @@ export function ComposerThroughputStats({
   sessionId,
 }: ComposerThroughputStatsProps) {
   const { intl, locale } = useZCodeIntl();
-  const phase = snapshot?.control.phase ?? null;
-  const { tps, roundIndex } = useSessionDebugFacts({
+  const { tps, roundIndex, outputTokens } = useSessionDebugFacts({
     workspacePath,
     workspaceIdentity,
     sessionId,
-    active: phase === "running" || phase === "prewarming",
+    usageKey: resolveUsageKey(snapshot),
   });
   if (!snapshot) return null;
 
   const usage = snapshot.usage;
   const tokens = resolveSessionTokens(usage);
   const cacheHitRate = resolveCacheHitRate(usage);
-  if (roundIndex === null && tps === null && tokens === null && cacheHitRate === null) return null;
+  if (
+    roundIndex === null &&
+    tps === null &&
+    outputTokens === null &&
+    tokens === null &&
+    cacheHitRate === null
+  )
+    return null;
 
   const segments: string[] = [];
   if (roundIndex !== null) {
@@ -159,6 +177,19 @@ export function ComposerThroughputStats({
       intl.formatMessage(
         { id: "chat.composer.throughput.tps" },
         { value: new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(tps) },
+      ),
+    );
+  }
+  if (outputTokens !== null) {
+    segments.push(
+      intl.formatMessage(
+        { id: "chat.composer.throughput.output" },
+        {
+          value: new Intl.NumberFormat(locale, {
+            notation: "compact",
+            maximumFractionDigits: 1,
+          }).format(outputTokens),
+        },
       ),
     );
   }

@@ -30,15 +30,19 @@ UI 只读既有事实，不新增状态、不新增 RPC、不改协议：
 ## 展示时机
 
 - 行本身：拿到 `snapshot` 且任一指标可用时出现；新任务草稿态（`snapshot === null`）与三段全空时不渲染。
-- 轮次与 tok/s：挂载 / 切会话 / 每轮开始与结束时各读一次 `session-debug`；**只有运行中（`running` / `prewarming`）才按 1s 续读**，空闲不轮询。
-  - 为什么需要轮询：CLI 没有推送 per-request token 与耗时的通知（`localTtftFacts` 只带 TTFT 时间点），`session-debug` 是拉取型接口；只在整轮终态读一次会落后整轮内后续所有请求（2026-11-24 反馈）。
-  - 若要完全事件驱动，需要在 CLI 增加吞吐推送通知（协议变更），不在本改动范围。
+- 轮次与 tok/s：由 `snapshot.usage` 变化驱动 —— CLI 每次主链路请求完成都会推一次 usage 投影，
+  行内据此读一次 `session-debug`，并在 400ms 后补读一次确认（debug 旁路记录与 usage 同事件写入，
+  快照帧可能先到）。**不设定时轮询**；空闲会话不产生读取。
+  - 为什么不用事件推送：CLI 没有推送 per-request token 与耗时的通知（`localTtftFacts` 只带 TTFT
+    时间点），`session-debug` 是拉取型接口；usage 投影是当前唯一“每请求一次”的推送事实，因此用它
+    当触发器。
+  - 与开发者工具的时序：开发者工具按 1s 轮询同一份事实，本行在 usage 帧到达时立即读，因此不会晚于它。
 - token 与缓存命中：随 snapshot 实时更新。
 
 ## 展示契约
 
 - 位置：输入卡正下方、**滚动容器之外**（`ConversationTimeline` 的 `belowDockContent`），桌面与手机 Web 共用。
-- 形态：单行、居中、`text-ui-xs` + `text-foreground-subtle` + `tabular-nums`，分段以 `·` 连接，例如 `第 12 轮 · 148 tok/s · 343K tok · 缓存命中 91%`。
+- 形态：单行、居中、`text-ui-xs` + `text-foreground-subtle` + `tabular-nums`，分段以 `·` 连接，例如 `第 12 次请求 · 148 tok/s · 输出 177 · 343K tok · 缓存命中 91%`。
 - `data-testid="composer-throughput-stats"` 作为验收锚点。
 - 任一段缺失只省略该段；各段全部缺失时整行不渲染，不占高度、不产生布局跳动。
 - 窄窗口下整行保持单行并截断，不换行、不挤占发送按钮。
