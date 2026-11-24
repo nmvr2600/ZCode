@@ -306,6 +306,14 @@ export interface ConversationTimelineProps {
   turnNavigatorDirectoryRevision?: number;
   /** 与旧 ChatView 对齐：composer dock 属于同一个滚动视口，sticky 到滚动容器底部。 */
   bottomDock?: ReactNode;
+  /**
+   * dock 之下的常驻行（如输入框下方的吞吐统计）。
+   *
+   * 必须渲染在滚动容器之外：dock 是 scroll 区域里的 sticky 透明层，任何加在 dock
+   * 内部/下方的行都会让滚动中的消息从这一行透出来；放在 scroll 容器外由 overflow
+   * 直接裁掉，不需要给这一行加不透明底色。
+   */
+  belowDockContent?: ReactNode;
   /** 分享选择面板所在的共享父容器；用于把 dock 的真实位置写入同一坐标系。 */
   selectionPanelLayoutContainerRef?: { current: HTMLElement | null };
   /**
@@ -397,6 +405,7 @@ function ConversationTimelineImpl({
   onLoadAllOlder,
   turnNavigatorDirectoryRevision = 0,
   bottomDock,
+  belowDockContent,
   selectionPanelLayoutContainerRef,
   backgroundScrollLocked = false,
   emptyState,
@@ -2221,6 +2230,7 @@ function ConversationTimelineImpl({
           ) : null}
         </div>
       </div>
+      {belowDockContent}
       {backToBottomVisible && !bottomDock ? (
         <ConversationBackToBottomButton
           className="absolute bottom-3 left-1/2 -translate-x-1/2"

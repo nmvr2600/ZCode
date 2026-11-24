@@ -7442,6 +7442,11 @@ const jaJP: Record<string, string> = {
   "chat.composer.insertSessionShortcut": "# セッションを挿入",
   "chat.composer.insertSlashShortcut": "/ で機能を呼び出す",
   "chat.composer.insertSkillShortcut": "$ でスキルを呼び出す",
+  "chat.composer.throughput.cacheHit": "キャッシュヒット {value}",
+  "chat.composer.throughput.description": "直近ターンの出力速度とセッションのトークン使用量",
+  "chat.composer.throughput.round": "第 {value} ターン",
+  "chat.composer.throughput.tokens": "{value} tok",
+  "chat.composer.throughput.tps": "{value} tok/s",
   "chat.send.description": "現在のテキストと添付ファイルを送信します。",
   "chat.queue.enqueue.description":
     "現在の下書きをキューに入れ、現在の応答が終わった後に自動的に送信します。",

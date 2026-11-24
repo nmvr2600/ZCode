@@ -255,6 +255,7 @@ import {
 import { createConversationSharePreflightResponseHandlers } from "@/conversation-share-interaction/conversationSharePreflightResponse.js";
 import { scheduleConversationSharePreflightRequest } from "@/conversation-share-interaction/conversationSharePreflightRequest.js";
 import { ConversationBottomDockTransition } from "@/v4/ConversationBottomDockTransition.js";
+import { ComposerThroughputStats } from "@/v4/composer/ComposerThroughputStats.js";
 import {
   ensureConversationShareAttempt,
   retainConversationShareAttemptAfterFailure,
@@ -6678,6 +6679,19 @@ export function SessionPane({
     </ConversationBottomDockTransition>
   ) : null;
 
+  // 输入框下方的吞吐统计（docs/composer-throughput-stats.md）：交给 timeline 渲染在
+  // 滚动容器之外。dock 是 scroll 区里的 sticky 透明层，把这一行加进 dock 会让滚动中的
+  // 消息从它后面透出来；放在 scroll 区外由 overflow 裁掉，不需要额外底色。
+  const composerThroughputStats =
+    readOnly || !timelineSnapshot ? null : (
+      <ComposerThroughputStats
+        snapshot={timelineSnapshot}
+        workspacePath={workspacePath}
+        workspaceIdentity={workspaceIdentity}
+        sessionId={sessionId}
+      />
+    );
+
   const { agents: presentationAgents } = useSubagents(
     workspacePath,
     ZCODE_AGENT_PROVIDER,
@@ -6854,6 +6868,7 @@ export function SessionPane({
                     onLoadAllOlder={state.editPresentation ? undefined : handleLoadAllOlder}
                     turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
                     bottomDock={conversationBottomDock}
+                    belowDockContent={composerThroughputStats}
                     hideTurnNavigator={shareSelectionPanelVisible && !compactForRemoteControl}
                     backgroundScrollLocked={false}
                     headerSlot={

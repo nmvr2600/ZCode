@@ -2616,3 +2616,8 @@ exceptions:
     paths:
       - apps/zcode-cli/packages/cli/src/browser-state-option.ts
     reason: --browser-state 与 --no-browser-state 的参数校验与来源解析（docs/browser-use/2026-11-17-cli-browser-state-spec.md §4），只被已有 unmanaged 的 CLI 入口 run.ts 调用。不新增模块边界或状态 owner；接管整个 zcode-cli 不在本次范围内。
+  - id: composer-throughput-stats-new-file
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/v4/composer/ComposerThroughputStats.tsx
+    reason: 输入框底部吞吐统计（docs/composer-throughput-stats.md）只读 v4 snapshot，新增一个纯展示组件，由已有 unmanaged 的 ConversationComposer 单点挂载。不新增状态 owner、协议或模块边界；接管整个 ui 未受管模块不在本次范围内。
