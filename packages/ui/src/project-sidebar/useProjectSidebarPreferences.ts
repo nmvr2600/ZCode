@@ -9,6 +9,7 @@ import { getSafeLocalStorage } from "@/lib/browserEnvironment.js";
 import { readWorkspaceExpansionState } from "@/lib/workspaceExpansionPreference.js";
 
 import { reconcileProjectOrder, moveProjectOrder } from "@/project-sidebar/projectOrder.js";
+import { promoteProjectOrder } from "@/project-sidebar/projectActivityPromotion.js";
 
 import { readProjectSidebarView } from "@/project-sidebar/view-preference.js";
 
@@ -140,6 +141,26 @@ export function useProjectSidebarPreferences(
       }),
     [],
   );
+  // 会话活动领先时置前；顺序未变化时不写盘、不重渲染，避免流式事件反复刷新侧栏。
+  const promote = useCallback(
+    (key: string) => {
+      setPreferences((previous) => {
+        const order = promoteProjectOrder(
+          reconcileProjectOrder(previous.order, [], upgradeKeys),
+          key,
+        );
+        if (
+          order.length === previous.order.length &&
+          order.every((item, index) => item === previous.order[index])
+        )
+          return previous;
+        const next = { ...previous, order };
+        write(KEY, next);
+        return next;
+      });
+    },
+    [upgradeKeys],
+  );
   const setView = useCallback((view: ProjectSidebarView) => update({ view }), [update]);
   // 原因：偏好变化时重建展开回调会穿透所有项目的 memo，阻塞折叠动画首帧。
   // 命令保持稳定，函数式更新读取最新偏好，连续切换和跨窗口更新不会覆盖其它项目。
@@ -171,6 +192,7 @@ export function useProjectSidebarPreferences(
       },
       reorder: (section: VirtualProject[], active: string, over: string) =>
         changeOrder((order) => moveProjectOrder(order, section.map(projectKey), active, over)),
+      promote,
       view: preferences.view,
       setView,
       isExpanded: (project: VirtualProject) =>
@@ -194,6 +216,6 @@ export function useProjectSidebarPreferences(
         }),
       setExpanded,
     }),
-    [preferences, changeOrder, setView, setExpanded, legacyExpansion, upgradeKeys],
+    [preferences, changeOrder, promote, setView, setExpanded, legacyExpansion, upgradeKeys],
   );
 }
