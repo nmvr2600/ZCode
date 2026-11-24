@@ -43,7 +43,7 @@ workflow 中不写平台分支和发布规则；新增平台、调整默认矩�
 | --------------- | ------------- | ------------------ | ------------- |
 | `macos-arm64`   | mac / arm64   | `macos-15`         | PR、分支、tag |
 | `macos-x64`     | mac / x64     | `macos-15-intel`   | tag           |
-| `windows-x64`   | win / x64     | `windows-2025`     | PR、分支、tag |
+| `windows-x64`   | win / x64     | `windows-2022`     | PR、分支、tag |
 | `windows-arm64` | win / arm64   | `windows-11-arm`   | 仅手动        |
 | `linux-x64`     | linux / x64   | `ubuntu-22.04`     | 分支、tag     |
 | `linux-arm64`   | linux / arm64 | `ubuntu-22.04-arm` | 仅手动        |

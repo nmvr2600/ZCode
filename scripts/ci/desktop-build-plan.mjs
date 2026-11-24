@@ -16,7 +16,7 @@ import { pathToFileURL } from "node:url";
 const PLATFORM_CATALOG = Object.freeze({
   "macos-arm64": { os: "mac", arch: "arm64", runner: "macos-15", label: "macOS arm64" },
   "macos-x64": { os: "mac", arch: "x64", runner: "macos-15-intel", label: "macOS x64" },
-  "windows-x64": { os: "win", arch: "x64", runner: "windows-2025", label: "Windows x64" },
+  "windows-x64": { os: "win", arch: "x64", runner: "windows-2022", label: "Windows x64" },
   "windows-arm64": {
     os: "win",
     arch: "arm64",
