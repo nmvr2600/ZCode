@@ -1,7 +1,12 @@
+import { useEffect, useState } from "react";
 import type { SessionDebugSnapshot } from "@zcode/shared";
 import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
-import { useSessionDebug } from "@/hooks/useSessionDebug.js";
+import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+
+/** 运行中按 1s 拉一次；空闲不轮询（CLI 没有推送每请求 token/耗时的通道）。 */
+const RUNNING_REFRESH_MS = 1000;
+const EMPTY_FACTS: DebugFacts = { tps: null, roundIndex: null };
 
 interface ComposerThroughputStatsProps {
   snapshot: ConversationSnapshot | null;
@@ -36,6 +41,69 @@ function readDebugFacts(rounds: readonly SessionDebugSnapshot["rounds"][number][
   };
 }
 
+/**
+ * 读取吞吐事实的时机：挂载 / 切会话 / 每轮开始与结束各读一次；只有会话运行中才按 1s 续读。
+ *
+ * CLI 目前没有推送 per-request token 与耗时的通知（localTtftFacts 只带 TTFT 时间点），
+ * `session-debug` 只能拉取，所以运行中必须轮询才能跟上轮内连续多次模型请求；空闲时不读。
+ */
+function useSessionDebugFacts({
+  workspacePath,
+  workspaceIdentity,
+  sessionId,
+  active,
+}: {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  sessionId: string | null;
+  active: boolean;
+}): DebugFacts {
+  const { zcodeAgentService } = useServices();
+  const scopeKey = JSON.stringify([workspaceIdentity?.trim() || workspacePath, sessionId]);
+  const [result, setResult] = useState<{ key: string; facts: DebugFacts } | null>(null);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const read = async () => {
+      let facts: DebugFacts = EMPTY_FACTS;
+      try {
+        const debug = await zcodeAgentService.readSessionDebug({
+          workspacePath,
+          workspaceIdentity,
+          sessionId,
+        });
+        facts = readDebugFacts(debug.rounds);
+      } catch {
+        // 调试事实读取失败不影响统计行其余指标。
+      }
+      if (!disposed) setResult({ key: scopeKey, facts });
+      return !disposed;
+    };
+
+    const scheduleNext = () => {
+      timer = setTimeout(() => {
+        void read().then((alive) => {
+          if (alive) scheduleNext();
+        });
+      }, RUNNING_REFRESH_MS);
+    };
+
+    // 进终态或切会话时 active 变化会重建本 effect：先读一次拿到最终一轮的数据。
+    void read();
+    if (active) scheduleNext();
+
+    return () => {
+      disposed = true;
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, [active, scopeKey, sessionId, workspaceIdentity, workspacePath, zcodeAgentService]);
+
+  return result?.key === scopeKey ? result.facts : EMPTY_FACTS;
+}
+
 function resolveSessionTokens(usage: ConversationSnapshot["usage"] | null): number | null {
   const usedTokens = usage?.contextWindow?.usedTokens;
   if (typeof usedTokens === "number" && usedTokens > 0) return usedTokens;
@@ -63,13 +131,13 @@ export function ComposerThroughputStats({
   sessionId,
 }: ComposerThroughputStatsProps) {
   const { intl, locale } = useZCodeIntl();
-  const debug = useSessionDebug({
+  const phase = snapshot?.control.phase ?? null;
+  const { tps, roundIndex } = useSessionDebugFacts({
     workspacePath,
     workspaceIdentity,
-    taskId: sessionId,
-    enabled: sessionId !== null && snapshot !== null,
+    sessionId,
+    active: phase === "running" || phase === "prewarming",
   });
-  const { tps, roundIndex } = readDebugFacts(debug.rounds);
   if (!snapshot) return null;
 
   const usage = snapshot.usage;
