@@ -7416,7 +7416,7 @@ const ruRU: Record<string, string> = {
   "chat.composer.insertSkillShortcut": "$ — навыки",
   "chat.composer.throughput.cacheHit": "Попадание в кэш {value}",
   "chat.composer.throughput.description": "Скорость вывода последнего хода и расход токенов сессии",
-  "chat.composer.throughput.round": "Ход {value}",
+  "chat.composer.throughput.round": "Запрос {value}",
   "chat.composer.throughput.tokens": "{value} tok",
   "chat.composer.throughput.tps": "{value} tok/s",
   "chat.send.description": "Отправить текущий текст и вложения.",

@@ -7781,7 +7781,7 @@ const enUS: Record<string, string> = {
   "chat.composer.insertSkillShortcut": "Use $ for skills",
   "chat.composer.throughput.cacheHit": "Cache hit {value}",
   "chat.composer.throughput.description": "Latest turn output rate and session token usage",
-  "chat.composer.throughput.round": "Turn {value}",
+  "chat.composer.throughput.round": "Request {value}",
   "chat.composer.throughput.tokens": "{value} tok",
   "chat.composer.throughput.tps": "{value} tok/s",
   "chat.send.description": "Send the current text and attachments.",

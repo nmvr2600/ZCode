@@ -7444,7 +7444,7 @@ const jaJP: Record<string, string> = {
   "chat.composer.insertSkillShortcut": "$ でスキルを呼び出す",
   "chat.composer.throughput.cacheHit": "キャッシュヒット {value}",
   "chat.composer.throughput.description": "直近ターンの出力速度とセッションのトークン使用量",
-  "chat.composer.throughput.round": "第 {value} ターン",
+  "chat.composer.throughput.round": "{value} 回目のリクエスト",
   "chat.composer.throughput.tokens": "{value} tok",
   "chat.composer.throughput.tps": "{value} tok/s",
   "chat.send.description": "現在のテキストと添付ファイルを送信します。",
