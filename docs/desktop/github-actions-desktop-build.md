@@ -24,14 +24,15 @@ workflow 中不写平台分支和发布规则；新增平台、调整默认矩�
 
 ## 触发规则
 
-| 触发                     | 条件                                   | 平台                                      | 构建画像     | 产物去向                     |
-| ------------------------ | -------------------------------------- | ----------------------------------------- | ------------ | ---------------------------- |
-| PR 到 `main` / `dev`     | PR 带 `desktop-build` 标签             | `macos-arm64`、`windows-x64`              | `production` | Actions artifact，保留 7 天  |
-| 分支 push `main` / `dev` | 命中 `paths` 过滤                      | `macos-arm64`、`windows-x64`、`linux-x64` | `production` | Actions artifact，保留 14 天 |
-| tag `v*`                 | tag 必须等于 `v<package.json version>` | 上述三平台 + `macos-x64`                  | `production` | GitHub Release + artifact    |
-| `workflow_dispatch`      | 手动填写平台与画像                     | 输入值（默认同上三平台）                  | 输入值       | Actions artifact             |
+| 触发                     | 条件                                   | 平台                         | 构建画像     | 产物去向                     |
+| ------------------------ | -------------------------------------- | ---------------------------- | ------------ | ---------------------------- |
+| PR 到 `main` / `dev`     | PR 带 `desktop-build` 标签             | `macos-arm64`                | `production` | Actions artifact，保留 7 天  |
+| 分支 push `main` / `dev` | 命中 `paths` 过滤                      | `macos-arm64`                | `production` | Actions artifact，保留 14 天 |
+| tag `v*`                 | tag 必须等于 `v<package.json version>` | `macos-arm64`                | `production` | GitHub Release + artifact    |
+| `workflow_dispatch`      | 手动填写平台与画像                     | 输入值（默认 `macos-arm64`） | 输入值       | Actions artifact             |
 
-- PR 未打 `desktop-build` 标签时 workflow 仍然触发，但 `plan` 会明确输出跳过原因，不占用 macOS/Windows runner。
+- 默认只构建 macOS arm64；其他平台保留为手动选项，不进入自动流水线。
+- PR 未打 `desktop-build` 标签时 workflow 仍然触发，但 `plan` 会明确输出跳过原因，不占用 macOS runner。
 - 分支 push 的 `paths` 过滤只覆盖构建相关目录（`apps/`、`packages/`、`scripts/`、`config/` 等）；tag push 不受该过滤影响。
 - 同一 ref 的 PR/dispatch 构建会取消旧任务；tag 与分支 push 不取消进行中的构建。
 
@@ -42,13 +43,13 @@ workflow 中不写平台分支和发布规则；新增平台、调整默认矩�
 | 平台标识        | 目标 OS/Arch  | runner             | 默认参与      |
 | --------------- | ------------- | ------------------ | ------------- |
 | `macos-arm64`   | mac / arm64   | `macos-15`         | PR、分支、tag |
-| `macos-x64`     | mac / x64     | `macos-15-intel`   | tag           |
-| `windows-x64`   | win / x64     | `windows-2022`     | PR、分支、tag |
+| `macos-x64`     | mac / x64     | `macos-15-intel`   | 仅手动        |
+| `windows-x64`   | win / x64     | `windows-2022`     | 仅手动        |
 | `windows-arm64` | win / arm64   | `windows-11-arm`   | 仅手动        |
-| `linux-x64`     | linux / x64   | `ubuntu-22.04`     | 分支、tag     |
+| `linux-x64`     | linux / x64   | `ubuntu-22.04`     | 仅手动        |
 | `linux-arm64`   | linux / arm64 | `ubuntu-22.04-arm` | 仅手动        |
 
-Linux 打包 job 需要 `rpm`、`xz-utils` 与 `libarchive-tools`（pacman 目标），workflow 在构建前安装；Windows job 会打开 `core.longpaths`。`windows-arm64` 与 `linux-arm64` 仅保留手动入口，未纳入默认验证，首次使用前应先单独触发确认原生依赖可用。
+Linux 打包 job 需要 `rpm`、`xz-utils` 与 `libarchive-tools`（pacman 目标），workflow 在构建前安装；Windows job 会打开 `core.longpaths`。非 macOS 平台未纳入默认验证，首次使用前应先单独触发确认原生依赖可用。
 
 ## 构建画像
 
@@ -66,7 +67,7 @@ Linux 打包 job 需要 `rpm`、`xz-utils` 与 `libarchive-tools`（pacman 目�
 
 - 版本号唯一来源是根目录 `package.json`。分支/PR 构建沿用当前版本，产物通过身份和后缀区分，不做版本号改写。
 - tag 必须是 `v<package.json version>`，否则 `plan` 直接失败，避免安装包文件名、应用版本与 Release 标题不一致。
-- 发版流程：PR 中提升 `package.json` 版本 → 合并到 `main` → 打 tag `v<version>` → workflow 构建四平台并创建 GitHub Release。
+- 发版流程：PR 中提升 `package.json` 版本 → 合并到 `main` → 打 tag `v<version>` → workflow 构建 macOS arm64 并创建 GitHub Release。
 
 ## 产物与校验
 

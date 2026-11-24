@@ -8,7 +8,7 @@ import { PULL_REQUEST_LABEL, resolveDesktopBuildPlan } from "../ci/desktop-build
 
 const packageVersion = "4.0.0";
 
-test("release tag builds all four default platforms with the ZCode identity", () => {
+test("release tag builds the default macOS platform with the ZCode identity", () => {
   const plan = resolveDesktopBuildPlan({
     eventName: "push",
     refType: "tag",
@@ -21,7 +21,7 @@ test("release tag builds all four default platforms with the ZCode identity", ()
   assert.equal(plan.profile, "production");
   assert.equal(plan.zcodeEnv, "production");
   assert.equal(plan.previewIdentity, "0");
-  assert.deepEqual(plan.platforms, ["macos-arm64", "macos-x64", "windows-x64", "linux-x64"]);
+  assert.deepEqual(plan.platforms, ["macos-arm64"]);
   assert.equal(plan.matrix.include[0].runner, "macos-15");
   assert.equal(plan.matrix.include[0].os, "mac");
 });
@@ -39,7 +39,7 @@ test("release tag must match the repository version", () => {
   );
 });
 
-test("branch push builds three platforms and never publishes", () => {
+test("branch push builds the default macOS platform and never publishes", () => {
   const plan = resolveDesktopBuildPlan({
     eventName: "push",
     refType: "branch",
@@ -49,7 +49,7 @@ test("branch push builds three platforms and never publishes", () => {
 
   assert.equal(plan.shouldBuild, true);
   assert.equal(plan.releaseTag, "");
-  assert.deepEqual(plan.platforms, ["macos-arm64", "windows-x64", "linux-x64"]);
+  assert.deepEqual(plan.platforms, ["macos-arm64"]);
 });
 
 test("pull request build is gated by the desktop-build label", () => {
@@ -67,7 +67,7 @@ test("pull request build is gated by the desktop-build label", () => {
   });
   assert.equal(labeled.shouldBuild, true);
   assert.equal(labeled.releaseTag, "");
-  assert.deepEqual(labeled.platforms, ["macos-arm64", "windows-x64"]);
+  assert.deepEqual(labeled.platforms, ["macos-arm64"]);
 });
 
 test("manual dispatch accepts an explicit platform list and profile", () => {

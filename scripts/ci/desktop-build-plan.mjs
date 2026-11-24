@@ -47,12 +47,9 @@ const BUILD_PROFILES = Object.freeze({
   },
 });
 
-// PR 默认只打两个平台，与既有 MR 验收口径一致；tag 发布补齐 macOS x64。
-const PULL_REQUEST_PLATFORMS = Object.freeze(["macos-arm64", "windows-x64"]);
-const BRANCH_PLATFORMS = Object.freeze(["macos-arm64", "windows-x64", "linux-x64"]);
-const TAG_PLATFORMS = Object.freeze(["macos-arm64", "macos-x64", "windows-x64", "linux-x64"]);
-
-const DEFAULT_PLATFORMS = BRANCH_PLATFORMS;
+// GitHub 流程只交付 macOS arm64；其他平台仍保留在 PLATFORM_CATALOG 中，
+// 需要时通过手动 dispatch 显式选择，不再进入默认矩阵。
+const DEFAULT_PLATFORMS = Object.freeze(["macos-arm64"]);
 // 这是官方开源版的分支产物，默认使用正式 ZCode 身份；Preview 画像只用于并排安装验证。
 const DEFAULT_PROFILE = "production";
 export const PULL_REQUEST_LABEL = "desktop-build";
@@ -126,16 +123,16 @@ export function resolveDesktopBuildPlan({
         `tag ${refName} 与 package.json 版本 ${packageVersion} 不匹配；期望 ${expectedTag}`,
       );
     }
-    platforms = parsePlatforms("", TAG_PLATFORMS);
+    platforms = parsePlatforms("", DEFAULT_PLATFORMS);
     profile = DEFAULT_PROFILE;
     releaseTag = refName;
     reason = `release tag ${refName}`;
   } else if (eventName === "push") {
-    platforms = parsePlatforms("", BRANCH_PLATFORMS);
+    platforms = parsePlatforms("", DEFAULT_PLATFORMS);
     profile = DEFAULT_PROFILE;
     reason = `branch push ${refName}`;
   } else if (eventName === "pull_request") {
-    platforms = parsePlatforms("", PULL_REQUEST_PLATFORMS);
+    platforms = parsePlatforms("", DEFAULT_PLATFORMS);
     profile = DEFAULT_PROFILE;
     shouldBuild = normalizedLabels.includes(PULL_REQUEST_LABEL);
     reason = shouldBuild
