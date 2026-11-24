@@ -200,9 +200,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.release_tag }}
+          REPO: ${{ github.repository }}
         run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release/* --clobber
+          # release job 不 checkout 源码，gh 无法从工作目录推断仓库，必须显式传 -R。
+          if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* -R "$REPO" --clobber
           else
-            gh release create "$TAG" release/* --title "$TAG" --generate-notes
+            gh release create "$TAG" release/* -R "$REPO" --title "$TAG" --generate-notes
           fi
