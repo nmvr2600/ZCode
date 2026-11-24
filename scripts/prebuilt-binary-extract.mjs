@@ -39,6 +39,24 @@ export function extractPrebuiltArchive({ archivePath, archiveExt, extractDir, cw
   mkdirSync(extractDir, { recursive: true });
   if (archiveExt === "zip") {
     if (process.platform === "win32") {
+      const tarCwd = cwd ?? process.cwd();
+      // Bugfix: GitHub 托管 Windows runner 的 PSModulePath 混入了 PowerShell 7 的
+      // Microsoft.PowerShell.Archive。Windows PowerShell 5.1 加载该模块后会调用 .NET Framework
+      // 不存在的 ExtractToDirectory(source, destination, overwrite) 三重载，直接报
+      // "Cannot find an overload ... argument count 3"，安装包构建因此失败。
+      // 系统自带 bsdtar（C:\Windows\System32\tar.exe）可直接解 zip，优先生效；
+      // Git Bash 的 GNU tar 不支持 zip 时会回退到原有 Expand-Archive 路径。
+      try {
+        runCommand(
+          "tar",
+          ["-xf", resolveTarArchiveArg(archivePath, tarCwd), "-C", toTarPosixPath(extractDir)],
+          { cwd: tarCwd },
+        );
+        return;
+      } catch {
+        // 回退到 Windows PowerShell 5.1 的 Expand-Archive。
+      }
+
       runCommand("powershell.exe", [
         "-NoProfile",
         "-NonInteractive",
