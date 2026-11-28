@@ -26,9 +26,9 @@ workflow 中不写平台分支和发布规则；新增平台、调整默认矩�
 
 | 触发                     | 条件                                   | 平台                         | 构建画像     | 产物去向                     |
 | ------------------------ | -------------------------------------- | ---------------------------- | ------------ | ---------------------------- |
-| PR 到 `main` / `dev`     | PR 带 `desktop-build` 标签             | `macos-arm64`                | `production` | Actions artifact，保留 7 天  |
-| 分支 push `main` / `dev` | 命中 `paths` 过滤                      | `macos-arm64`                | `production` | Actions artifact，保留 14 天 |
-| tag `v*`                 | tag 必须等于 `v<package.json version>` | `macos-arm64`                | `production` | GitHub Release + artifact    |
+| PR 到 `main` / `dev`     | PR 带 `desktop-build` 标签             | `macos-arm64`                | `preview-production` | Actions artifact，保留 7 天  |
+| 分支 push `main` / `dev` | 命中 `paths` 过滤                      | `macos-arm64`                | `preview-production` | Actions artifact，保留 14 天 |
+| tag `v*`                 | tag 必须等于 `v<package.json version>` | `macos-arm64`                | `preview-production` | GitHub Release + artifact    |
 | `workflow_dispatch`      | 手动填写平台与画像                     | 输入值（默认 `macos-arm64`） | 输入值       | Actions artifact             |
 
 - 默认只构建 macOS arm64；其他平台保留为手动选项，不进入自动流水线。
@@ -55,13 +55,13 @@ Linux 打包 job 需要 `rpm`、`xz-utils` 与 `libarchive-tools`（pacman 目�
 
 安装身份与后端环境是两个轴，由画像同时决定：
 
-| 画像                 | `ZCODE_ENV`  | `ZCODE_PREVIEW_IDENTITY` | 应用身份        | 产物文件        |
-| -------------------- | ------------ | ------------------------ | --------------- | --------------- |
-| `production`（默认） | `production` | `0`                      | `ZCode`         | 无 `_TEST` 后缀 |
-| `preview-production` | `production` | `1`                      | `ZCode Preview` | 无 `_TEST` 后缀 |
-| `preview-test`       | `test`       | `0`                      | `ZCode Preview` | 带 `_TEST` 后缀 |
+| 画像                       | `ZCODE_ENV`  | `ZCODE_PREVIEW_IDENTITY` | 应用身份        | 产物文件        |
+| -------------------------- | ------------ | ------------------------ | --------------- | --------------- |
+| `preview-production`（默认） | `production` | `1`                      | `ZCode Preview` | 无 `_TEST` 后缀 |
+| `preview-test`             | `test`       | `0`                      | `ZCode Preview` | 带 `_TEST` 后缀 |
+| `production`               | `production` | `0`                      | `ZCode`         | 无 `_TEST` 后缀 |
 
-默认使用 `production`：本仓库是官方开源版的修改版，产物就是 `ZCode`。它和系统内官方安装共享 appId，安装会覆盖/替换官方版本，且自动更新仍指向官方 feed；需要与官方版并排安装、避免被自动更新覆盖时，手动触发 `preview-production` 或 `preview-test`。
+默认使用 `preview-production`：本仓库是官方开源版的修改版，产物必须与系统内官方 `ZCode` 并排安装——Preview 身份使用独立 appId 与 productName，不覆盖官方版本，也不接管官方自动更新 feed。安装 `ZCode Preview-<version>-*.dmg` 后官方版保持原样，需要正式身份时在手动 dispatch 显式选择 `production`。
 
 ## 版本与 tag
 

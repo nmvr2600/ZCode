@@ -50,8 +50,9 @@ const BUILD_PROFILES = Object.freeze({
 // GitHub 流程只交付 macOS arm64；其他平台仍保留在 PLATFORM_CATALOG 中，
 // 需要时通过手动 dispatch 显式选择，不再进入默认矩阵。
 const DEFAULT_PLATFORMS = Object.freeze(["macos-arm64"]);
-// 这是官方开源版的分支产物，默认使用正式 ZCode 身份；Preview 画像只用于并排安装验证。
-const DEFAULT_PROFILE = "production";
+// 本仓库是官方开源版的修改版：默认产物使用 Preview 身份（独立 appId 与 productName），
+// 与系统内官方 ZCode 并排安装、互不覆盖；正式 ZCode 身份仅在手动 dispatch 显式选择时使用。
+const DEFAULT_PROFILE = "preview-production";
 export const PULL_REQUEST_LABEL = "desktop-build";
 
 function normalizeList(values) {

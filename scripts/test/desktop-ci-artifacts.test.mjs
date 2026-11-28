@@ -8,7 +8,7 @@ import { PULL_REQUEST_LABEL, resolveDesktopBuildPlan } from "../ci/desktop-build
 
 const packageVersion = "4.0.0";
 
-test("release tag builds the default macOS platform with the ZCode identity", () => {
+test("release tag builds the default macOS platform with the ZCode Preview identity", () => {
   const plan = resolveDesktopBuildPlan({
     eventName: "push",
     refType: "tag",
@@ -18,9 +18,9 @@ test("release tag builds the default macOS platform with the ZCode identity", ()
 
   assert.equal(plan.shouldBuild, true);
   assert.equal(plan.releaseTag, "v4.0.0");
-  assert.equal(plan.profile, "production");
+  assert.equal(plan.profile, "preview-production");
   assert.equal(plan.zcodeEnv, "production");
-  assert.equal(plan.previewIdentity, "0");
+  assert.equal(plan.previewIdentity, "1");
   assert.deepEqual(plan.platforms, ["macos-arm64"]);
   assert.equal(plan.matrix.include[0].runner, "macos-15");
   assert.equal(plan.matrix.include[0].os, "mac");

@@ -38,11 +38,11 @@ on:
         description: "构建画像"
         required: false
         type: choice
-        default: production
+        default: preview-production
         options:
-          - production
           - preview-production
           - preview-test
+          - production
 
 permissions:
   contents: read
